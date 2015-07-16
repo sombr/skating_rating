@@ -1,0 +1,74 @@
+#!/usr/bin/perl
+package bin::compute;
+use Moo;
+
+use lib 'lib';
+use MFST::Skating::Data;
+
+use Encode qw/ encode decode /;
+
+has filename => (
+    is => "ro",
+    isa => sub {
+        my $val = shift;
+        die "no file" unless $val && -f $val;
+        $val;
+    },
+    required => 1
+);
+
+sub trim {
+    my $text = shift;
+
+    $text =~ s/^\s+//s;
+    $text =~ s/\s+$//s;
+
+    $text;
+}
+
+sub tablize {
+    my $text = shift;
+
+    my ($header, @rows) = map { trim($_) } split("\n", $text);
+
+    # remove empty
+    @rows = grep { $_ =~ /\d+/ } @rows;
+
+    return { header => $header, rows => \@rows };
+}
+
+sub run {
+    my $self = shift;
+
+    open(my $file, $self->filename) or die "can't open file";
+    my $data = encode("utf8", decode("cp1251", do { local $/ = undef; <$file> } // ""));
+    close($file);
+
+    my @tables = map { tablize( trim($_) ) } grep { $_ } split /^.*Участни(?:ки|цы).*$/m, $data;
+    my @res = map { $self->compute_norm( $_ )->to_s } @tables;
+
+    print "$_\n" for @res;
+}
+
+sub compute_norm {
+    my ($self, $table) = @_;
+
+    my ($empty, @competitors) = split /\s*;\s*/, $table->{header};
+    my $data = {
+        map {
+            my ($judge, @marks) = split /\s*;\s*/, $_;
+            ($judge => \@marks)
+        } @{ $table->{rows} }
+    };
+
+    my $computer = MFST::Skating::Data->new(
+        competitors => \@competitors,
+        data => $data
+    );
+
+    $computer->compute;
+
+    $computer;
+}
+
+__PACKAGE__->new( filename => $ARGV[0] )->run;
