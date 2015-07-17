@@ -121,7 +121,7 @@ sub to_s {
                 map {
                     my $info = $self->table->{$_}->{$c};
                     ($info && $info->{count})
-                        ? "$info->{count}($info->{sum})" . ( $info->{count}*2 > @{$self->competitors} ? "!" : "")
+                        ? "$info->{count}($info->{sum})" . ( $info->{count}*2 > @{$self->judges} ? "!" : "")
                         : ""
                 } @tcols
             ),
@@ -168,7 +168,7 @@ sub compute {
             $tcol->{$c}->{uid} = "$tcol->{$c}->{count}($tcol->{$c}->{sum})";
             debug("1-$col :: $c = $tcol->{$c}->{count} ($tcol->{$c}->{sum} :: [" . join(", ", @restricted_marks) . "])");
 
-            if ($tcol->{$c}->{count} > (@{$self->judges} / 2.0)) {
+            if ($tcol->{$c}->{count}*2 > @{$self->judges}) {
                 push @$majority, $c;
                 push @{$majority_by_uid->{ $tcol->{$c}->{uid} }}, $c;
             }

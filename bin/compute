@@ -5,6 +5,10 @@ use Moo;
 use lib 'lib';
 use MFST::Skating::Data;
 
+my $PER_PERSON = 1;
+my $HIDE_NAME = 1;
+use Text::ASCIITable;
+
 use Encode qw/ encode decode /;
 
 has filename => (
@@ -37,6 +41,38 @@ sub tablize {
     return { header => $header, rows => \@rows };
 }
 
+sub print_per_person {
+    my ($self, $res) = @_;
+    return unless $PER_PERSON;
+
+    my @csorted = sort { $res->result->{$a} <=> $res->result->{$b} } @{ $res->competitors };
+    my @tkeys = sort { eval("$b") <=> eval("$a") } keys %{ $res->table };
+
+    for my $competitor ( @{ $res->competitors } ) {
+        my $t = Text::ASCIITable->new({ headingText => $competitor });
+        $t->setCols(
+            "Name", "Marks", "*", @tkeys, "*", "Result"
+        );
+
+        for my $c ( @csorted ) {
+            my $name = $HIDE_NAME && $c ne $competitor ? "?????" : $c;
+            my @marks = sort { $a <=> $b } values %{$res->_c_data->{$c}};
+            my @tvals = map {
+                my $info = $res->table->{$_}->{$c};
+                ($info && $info->{count})
+                    ? "$info->{count}($info->{sum})" . ( $info->{count}*2 > @{$res->judges} ? "!" : "")
+                    : ""
+            } @tkeys;
+
+            $t->addRow($name, join(" ", @marks), "*", @tvals, "*", $res->result->{$c});
+        }
+
+        open(my $file, ">per_person/$competitor") or die "can't open $competitor";
+        print $file $t;
+        close($file);
+    }
+}
+
 sub run {
     my $self = shift;
 
@@ -45,9 +81,12 @@ sub run {
     close($file);
 
     my @tables = map { tablize( trim($_) ) } grep { $_ } split /^.*Участни(?:ки|цы).*$/m, $data;
-    my @res = map { $self->compute_norm( $_ )->to_s } @tables;
+    my @res = map { $self->compute_norm( $_ ) } @tables;
 
-    print "$_\n" for @res;
+    for my $r (@res) {
+        print $r->to_s . "\n";
+        $self->print_per_person($r);
+    }
 }
 
 sub compute_norm {
